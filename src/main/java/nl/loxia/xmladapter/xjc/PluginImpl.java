@@ -23,7 +23,6 @@ import com.sun.tools.xjc.BadCommandLineException;
 import com.sun.tools.xjc.Options;
 import com.sun.tools.xjc.Plugin;
 import com.sun.tools.xjc.outline.ClassOutline;
-import com.sun.tools.xjc.outline.FieldOutline;
 import com.sun.tools.xjc.outline.Outline;
 
 /**
@@ -83,22 +82,19 @@ public final class PluginImpl extends Plugin {
 
 	private void fillAdapterToValueTypeAndBoundTypes(Outline model) {
 		for (String className : xmlAdapaterFQCNs) {
-			try {
-				// test for nl.loxia.rijwegen.projector.util.TrueFalseEnumAsBooleanAdapter
-//				Class clazz = Class.forName(className);
-				String boundType = "nl.loxia.engineering.beveiliging.raildesign.imspoor.generated.TTrueFalseEnum";
-				String valueType = "java.lang.Boolean";
-//				Method m = clazz.getDeclaredMethod("marshal", Object.class);
-//				Class valueType = (Class) ((ParameterizedType)m.getReturnType().getGenericSuperclass()).getActualTypeArguments()[0];
+				String[] classNames = className.split(",");
+				if (classNames.length != 3) {
+					log(Level.SEVERE, "Error during reading FQN xmladapterClass,boundTypeClass,valueTypeClass found: "+classNames);
+					return;
+				}
+				String adapterType = classNames[0];
+				String boundType = classNames[1];
+				String valueType = classNames[2];
 				JClass valueTypeJClass = model.getCodeModel().ref(valueType);
-//				Method um = clazz.getDeclaredMethod("ummarshal", Object.class);
-//				Class boundType = (Class) ((ParameterizedType)um.getReturnType().getGenericSuperclass()).getActualTypeArguments()[0];
 				JClass boundTypeJClass = model.getCodeModel().ref(boundType);
-				boundTypeToAdapterClass.put(boundTypeJClass.fullName(), model.getCodeModel().ref(className));
-				boundTypeToValueType.put(boundTypeJClass.fullName(),valueTypeJClass);
-			} catch (/*ClassNotFoundException | NoSuchMethodException | */SecurityException e) {
-				log(Level.SEVERE, "Error during reading xmladapter class: "+className, e);
-			}
+				JClass adapterTypeJClass = model.getCodeModel().ref(adapterType);
+				boundTypeToAdapterClass.put(boundTypeJClass.fullName(), adapterTypeJClass);
+				boundTypeToValueType.put(boundTypeJClass.fullName(), valueTypeJClass);
 		}
 	}
 
@@ -127,27 +123,14 @@ public final class PluginImpl extends Plugin {
 	public int parseArgument(final Options opt, final String[] args, final int i) throws BadCommandLineException, IOException {
 		if (args[i].startsWith(XMLADAPTER_NAMES_OPTION_NAME)) {
 			String value = args[i].substring(XMLADAPTER_NAMES_OPTION_NAME.length());
-			String[] classNames = value.split(",");
+			String[] classNames = value.trim().split("[\\s\\r\\n\\t]+");
 			this.xmlAdapaterFQCNs = Arrays.asList(classNames);
 			return 1;
 		}
 		return 0;
 	}
 
-
-	private JMethod getPropertyGetter(final FieldOutline f) {
-		final JDefinedClass clazz = f.parent().implClass;
-		final String name = f.getPropertyInfo().getName(true);
-		JMethod getter = clazz.getMethod("get" + name, NO_ARGS);
-
-		if (getter == null) {
-			getter = clazz.getMethod("is" + name, NO_ARGS);
-		}
-
-		return getter;
-	}
-
-	private JMethod getGetterProperty(final JDefinedClass clazz, final String name) {
+	private static JMethod getGetterProperty(final JDefinedClass clazz, final String name) {
 		JMethod getter = clazz.getMethod("get" + StringUtils.capitalize(name), NO_ARGS);
 
 		if (getter == null) {
@@ -156,7 +139,7 @@ public final class PluginImpl extends Plugin {
 		return getter;
 	}
 
-	private JMethod getSetterProperty(final JDefinedClass clazz, final String name) {
+	private static JMethod getSetterProperty(final JDefinedClass clazz, final String name) {
 		JMethod setter = clazz.getMethod("set" + StringUtils.capitalize(name), NO_ARGS);
 		return setter;
 	}
